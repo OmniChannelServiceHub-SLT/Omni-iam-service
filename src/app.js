@@ -29,14 +29,14 @@ app.get('/health', (req, res) => {
 });
 
 // The Gateway restores the client's original path (including the
-// /internal-api/iam/v1 prefix) before proxying - see proxyFactory.js's
+// /internal-api/iam/v4 prefix) before proxying - see proxyFactory.js's
 // pathRewrite. So this service mounts its routes under that same prefix.
 //
 // Every endpoint below comes from its own src/<tmfApiName>/ folder - one
 // per row of the "Identity and Access Management" sheet in
 // Omni-Channel-API-Mapping-By-Service.xlsx - auto-discovered by
 // src/routes/index.js.
-app.use('/internal-api/iam/v1', apiRoutes);
+app.use('/internal-api/iam/v4', apiRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

@@ -18,7 +18,7 @@ Example: row #1 `createRegister` → `src/createRegister/{controller.js, service
 
 `src/routes/index.js` scans `src/*/routes.js` (skipping the infra folders
 `config`, `middleware`, `models`, `routes`, `utils`) and auto-mounts every
-API it finds under `/internal-api/iam/v1` in `src/app.js`. Adding a new API
+API it finds under `/internal-api/iam/v4` in `src/app.js`. Adding a new API
 is just adding a new `src/<tmfApiName>/` folder — nothing to register by
 hand.
 
