@@ -1,14 +1,8 @@
-// Row #7 in Omni-Channel-API-Mapping-By-Service.xlsx ("Identity and
-// Access Management" sheet).
-// Legacy source: [Account] "Refresh" (POST)
-// Proposed TMF-Aligned Method Name: createRefresh
-const express = require('express');
-const asyncHandler = require('../../utils/asyncHandler');
+// Source IDs: A05. Paths are relative to /api or /internal-api/iam/v4.
+const router = require('express').Router();
 const identify = require('../../middleware/identify.middleware');
+const asyncHandler = require('../../utils/asyncHandler');
 const ctrl = require('./controller');
-
-const router = express.Router();
-
-router.post('/auth/refresh', asyncHandler(ctrl.createRefresh));
-
+router.post('/Account/refreshToken', asyncHandler(ctrl.refreshToken));
+router.post('/auth/refresh', asyncHandler(ctrl.refreshToken));
 module.exports = router;
