@@ -1,0 +1,733 @@
+{
+  "Login": {
+    "type": "object",
+    "required": [
+      "accessToken",
+      "refreshToken",
+      "user_id",
+      "name"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "accessToken": {
+        "type": "string"
+      },
+      "refreshToken": {
+        "type": "string"
+      },
+      "user_id": {
+        "type": "null"
+      },
+      "name": {
+        "type": "null"
+      }
+    }
+  },
+  "TerminateProfile": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "string"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "null"
+      },
+      "errorShow": {
+        "type": "string"
+      },
+      "errorCode": {
+        "type": "string"
+      }
+    }
+  },
+  "OTPAuthRequest": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "string"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "object",
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "user_id",
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "null"
+          },
+          "name": {
+            "type": "null"
+          }
+        }
+      },
+      "errorShow": {
+        "type": "string"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "refreshToken": {
+    "type": "object",
+    "required": [
+      "userName",
+      "access_token",
+      "refresh_token",
+      "token_type",
+      "expires_in",
+      ".issued",
+      ".expires"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "userName": {
+        "type": "string"
+      },
+      "access_token": {
+        "type": "string"
+      },
+      "refresh_token": {
+        "type": "string"
+      },
+      "token_type": {
+        "type": "string"
+      },
+      "expires_in": {
+        "type": "string"
+      },
+      ".issued": {
+        "type": "string"
+      },
+      ".expires": {
+        "type": "string"
+      }
+    }
+  },
+  "ChangePassword": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "string"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "null"
+      },
+      "errorShow": {
+        "type": "string"
+      },
+      "errorCode": {
+        "type": "string"
+      }
+    }
+  },
+  "ForgotPassword": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "string"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "string"
+      },
+      "errorShow": {
+        "type": "string"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "LoginExternal": {
+    "type": "object",
+    "required": [
+      "accessToken",
+      "refreshToken",
+      "user_id",
+      "name"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "accessToken": {
+        "type": "string"
+      },
+      "refreshToken": {
+        "type": "string"
+      },
+      "user_id": {
+        "type": "null"
+      },
+      "name": {
+        "type": "null"
+      }
+    }
+  },
+  "OTPeBillAuthRequest": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "null"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "null"
+      },
+      "errorShow": {
+        "type": "null"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "CallVoiceOTPRequest": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "string"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "null"
+      },
+      "errorShow": {
+        "type": "string"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "AddAccountVoiceOTPRequest": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "null"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "string"
+      },
+      "errorShow": {
+        "type": "null"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "ResendVoiceOTPRequest": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "string"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "null"
+      },
+      "errorShow": {
+        "type": "string"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "SendOTPRequest": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "string"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "null"
+      },
+      "errorShow": {
+        "type": "string"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "VerifyOTPRequest": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "null"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "null"
+      },
+      "errorShow": {
+        "type": "null"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "RegisterForBBFreedom": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "null"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "object",
+        "required": [
+          "accountNo",
+          "promotionName",
+          "accountCategory",
+          "listofVoiceService",
+          "listofBBService",
+          "listofPEOService"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "accountNo": {
+            "type": "string"
+          },
+          "promotionName": {
+            "type": "string"
+          },
+          "accountCategory": {
+            "type": "string"
+          },
+          "listofVoiceService": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "serviceID",
+                "packageName",
+                "serviceStatus",
+                "serviceType",
+                "updatedDTM"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "serviceID": {
+                  "type": "string"
+                },
+                "packageName": {
+                  "type": "string"
+                },
+                "serviceStatus": {
+                  "type": "string"
+                },
+                "serviceType": {
+                  "type": "string"
+                },
+                "updatedDTM": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "listofBBService": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "serviceID",
+                "packageName",
+                "serviceStatus",
+                "serviceType",
+                "updatedDTM"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "serviceID": {
+                  "type": "string"
+                },
+                "packageName": {
+                  "type": "string"
+                },
+                "serviceStatus": {
+                  "type": "string"
+                },
+                "serviceType": {
+                  "type": "string"
+                },
+                "updatedDTM": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "listofPEOService": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "serviceID",
+                "packageName",
+                "serviceStatus",
+                "serviceType",
+                "updatedDTM"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "serviceID": {
+                  "type": "string"
+                },
+                "packageName": {
+                  "type": "string"
+                },
+                "serviceStatus": {
+                  "type": "string"
+                },
+                "serviceType": {
+                  "type": "string"
+                },
+                "updatedDTM": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "errorShow": {
+        "type": "null"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "ChangeBBPassword": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "string"
+      },
+      "exceptionDetail": {
+        "type": "string"
+      },
+      "dataBundle": {
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "path"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "errorShow": {
+        "type": "string"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "RegisterV2": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "string"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "string"
+      },
+      "errorShow": {
+        "type": "string"
+      },
+      "errorCode": {
+        "type": "string"
+      }
+    }
+  },
+  "ResendOTPV2": {
+    "type": "object",
+    "required": [
+      "isSuccess",
+      "errorMessege",
+      "exceptionDetail",
+      "dataBundle",
+      "errorShow",
+      "errorCode"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "isSuccess": {
+        "type": "boolean"
+      },
+      "errorMessege": {
+        "type": "string"
+      },
+      "exceptionDetail": {
+        "type": "null"
+      },
+      "dataBundle": {
+        "type": "string"
+      },
+      "errorShow": {
+        "type": "string"
+      },
+      "errorCode": {
+        "type": "null"
+      }
+    }
+  },
+  "GetPeoTVGOAccessToken": {
+    "type": "object",
+    "required": [
+      "access_token",
+      "refresh_token",
+      "token_type",
+      "expires_in"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "access_token": {
+        "type": "string"
+      },
+      "refresh_token": {
+        "type": "string"
+      },
+      "token_type": {
+        "type": "string"
+      },
+      "expires_in": {
+        "type": "integer"
+      }
+    }
+  },
+  "GetGoogleAccessToken": {
+    "type": "object",
+    "required": [
+      "access_token",
+      "refresh_token",
+      "token_type",
+      "expires_in"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "access_token": {
+        "type": "string"
+      },
+      "refresh_token": {
+        "type": "string"
+      },
+      "token_type": {
+        "type": "string"
+      },
+      "expires_in": {
+        "type": "integer"
+      }
+    }
+  }
+}

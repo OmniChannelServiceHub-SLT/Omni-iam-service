@@ -1,76 +1,40 @@
-// src/utils/otp.js
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const Otp = require('../models/Otp');
-
-const OTP_LENGTH = Number(process.env.OTP_LENGTH || 4);
-const OTP_EXPIRES_MIN = Number(process.env.OTP_EXPIRES_MIN || 5);
-const OTP_DEV_MODE = String(process.env.OTP_DEV_MODE || 'true') === 'true';
-
-function generateCode() {
-  const max = 10 ** OTP_LENGTH;
-  const code = crypto.randomInt(0, max);
-  return String(code).padStart(OTP_LENGTH, '0');
-}
-
-/**
- * Creates an OTP record for userName/purpose and returns it.
- * dataBundle in the legacy contract is this record's _id (as a string) -
- * the client sends it back together with the code to verify/reset.
- */
+const { fail } = require('./errors');
+const { callProvider } = require('../services/provider');
+const digest = (userName, purpose, code) => crypto.createHmac('sha256', process.env.OTP_HASH_SECRET || process.env.JWT_ACCESS_SECRET).update(JSON.stringify([userName, purpose, String(code)])).digest('hex');
 async function createOtp(userName, purpose) {
-  const code = generateCode();
-  const expiresAt = new Date(Date.now() + OTP_EXPIRES_MIN * 60 * 1000);
-
-  const otp = await Otp.create({ userName, code, purpose, expiresAt });
-
-  // TODO: wire this up to a real SMS/email gateway before production.
-  // In dev mode we just log it so the flow can be tested end-to-end
-  // without a live SMS provider.
-  if (OTP_DEV_MODE) {
-    // eslint-disable-next-line no-console
-    console.log(`[OTP][${purpose}] userName=${userName} code=${code} id=${otp._id}`);
-  }
-
+  const dev = process.env.NODE_ENV !== 'production' && process.env.OTP_DEV_MODE === 'true';
+  if (!dev && (!process.env.IAM_PROVIDER_OTPDELIVERY_URL || !process.env.IAM_PROVIDER_API_KEY)) fail(503, 'OTP_DELIVERY_NOT_CONFIGURED', 'Configure OTP delivery or explicitly enable local OTP_DEV_MODE.');
+  const recent = await Otp.findOne({ userName, createdAt: { $gt: new Date(Date.now() - 60000) } });
+  if (recent) fail(429, 'OTP_COOLDOWN', 'Wait 60 seconds before requesting another OTP.');
+  const code = String(crypto.randomInt(100000, 1000000));
+  await Otp.updateMany({ userName, purpose, consumed: false }, { $set: { consumed: true } });
+  const otp = await Otp.create({ userName, purpose, codeHash: digest(userName, purpose, code), expiresAt: new Date(Date.now() + 300000) });
+  try {
+    if (dev) console.log(`[LOCAL OTP ONLY] id=${otp._id} purpose=${purpose} code=${code}`);
+    else {
+      const result = await callProvider('OTPDelivery', { recipient: userName, purpose, code, expiresIn: 300 });
+      if (result.delivered !== true) fail(502, 'OTP_DELIVERY_FAILED', 'OTP delivery was not confirmed.');
+    }
+  } catch (e) { await Otp.updateOne({ _id: otp._id }, { $set: { consumed: true } }); throw e; }
   return otp;
 }
-
-/**
- * Verifies { id, code } against a stored, unconsumed, unexpired OTP.
- * Returns the Otp document on success or throws with a .code for the caller.
- */
-async function verifyOtp({ id, code, purpose }) {
-  const otp = await Otp.findById(id);
-
-  if (!otp || otp.purpose !== purpose) {
-    const err = new Error('OTP request not found.');
-    err.code = 'OTP_NOT_FOUND';
-    throw err;
+async function verifyOtp({ id, userName, code, purpose }) {
+  if (id && !mongoose.isValidObjectId(id)) fail(400, 'OTP_INVALID', 'Invalid OTP request id.');
+  const filter = { purpose, consumed: false, expiresAt: { $gt: new Date() }, attempts: { $lt: 5 } };
+  if (id) filter._id = id;
+  else if (userName) filter.userName = userName;
+  else fail(400, 'OTP_INVALID', 'OTP id or user name required.');
+  const record = await Otp.findOne(filter).sort({ createdAt: -1 });
+  if (!record) fail(400, 'OTP_INVALID', 'OTP invalid, expired, used or locked.');
+  const expected = digest(record.userName, purpose, code);
+  const used = await Otp.findOneAndUpdate({ ...filter, _id: record._id, codeHash: expected }, { $set: { consumed: true } }, { new: true });
+  if (!used) {
+    await Otp.updateOne({ _id: record._id, consumed: false, attempts: { $lt: 5 } }, { $inc: { attempts: 1 } });
+    fail(400, 'OTP_INVALID', 'OTP invalid, expired, used or locked.');
   }
-
-  if (otp.consumed) {
-    const err = new Error('OTP has already been used.');
-    err.code = 'OTP_ALREADY_USED';
-    throw err;
-  }
-
-  if (otp.expiresAt.getTime() < Date.now()) {
-    const err = new Error('OTP has expired.');
-    err.code = 'OTP_EXPIRED';
-    throw err;
-  }
-
-  if (String(otp.code) !== String(code)) {
-    otp.attempts += 1;
-    await otp.save();
-    const err = new Error('Incorrect OTP.');
-    err.code = 'OTP_INVALID';
-    throw err;
-  }
-
-  otp.consumed = true;
-  await otp.save();
-
-  return otp;
+  return used;
 }
-
-module.exports = { createOtp, verifyOtp, OTP_DEV_MODE };
+module.exports = { createOtp, verifyOtp };

@@ -6,7 +6,7 @@ const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
 const ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
 const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
-if (!ACCESS_SECRET) {
+if (!ACCESS_SECRET || (process.env.NODE_ENV === 'production' && (ACCESS_SECRET.length < 32 || ACCESS_SECRET.startsWith('replace-')))) {
   throw new Error(
     'JWT_ACCESS_SECRET is not set. It must be identical to the API Gateway\'s JWT_ACCESS_SECRET.'
   );
@@ -23,6 +23,7 @@ function signAccessToken(user) {
       userName: user.userName,
       roles: user.roles || ['CUSTOMER'],
       scope: 'iam:self',
+      ver: user.tokenVersion || 0,
     },
     ACCESS_SECRET,
     { expiresIn: ACCESS_EXPIRES_IN }
@@ -30,7 +31,7 @@ function signAccessToken(user) {
 }
 
 function verifyAccessToken(token) {
-  return jwt.verify(token, ACCESS_SECRET);
+  return jwt.verify(token, ACCESS_SECRET, { algorithms: ['HS256'] });
 }
 
 /** Opaque, unguessable refresh token. Only its hash is ever persisted. */
