@@ -4,6 +4,14 @@ function isVoiceOtp() {
   return this.purpose === 'ADD_ACCOUNT_VOICE';
 }
 
+function isWorkflowOtp() {
+  return this.purpose === 'WORKFLOW_OTP';
+}
+
+function isBoundOtp() {
+  return isVoiceOtp.call(this) || isWorkflowOtp.call(this);
+}
+
 const otpSchema = new mongoose.Schema(
   {
     userName: {
@@ -22,7 +30,8 @@ const otpSchema = new mongoose.Schema(
       enum: [
         'REGISTER',
         'FORGOT_PASSWORD',
-        'ADD_ACCOUNT_VOICE'
+        'ADD_ACCOUNT_VOICE',
+        'WORKFLOW_OTP'
       ],
       required: true
     },
@@ -45,7 +54,7 @@ const otpSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: isVoiceOtp
+      required: isBoundOtp
     },
 
     econtact: {
@@ -55,12 +64,37 @@ const otpSchema = new mongoose.Schema(
 
     tokenVersion: {
       type: Number,
-      required: isVoiceOtp
+      required: isBoundOtp
     },
 
     resultData: {
       type: String,
       required: isVoiceOtp
+    },
+
+    telephoneNo: {
+      type: String,
+      required: isWorkflowOtp
+    },
+
+    requestType: {
+      type: String,
+      required: isWorkflowOtp
+    },
+
+    requestPeriod: {
+      type: String,
+      required: isWorkflowOtp
+    },
+
+    otpSource: {
+      type: String,
+      required: isWorkflowOtp
+    },
+
+    otpContact: {
+      type: String,
+      required: isWorkflowOtp
     },
 
     verifiedAt: {
