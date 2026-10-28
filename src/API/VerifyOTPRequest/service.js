@@ -3,6 +3,8 @@ const crypto = require('crypto');
 const User = require('../../models/User');
 const Otp = require('../../models/Otp');
 const { fields, fail } = require('../../utils/errors');
+const { claimLatestOtp } = require('../../utils/otp');
+const { withTransaction } = require('../../utils/transaction');
 
 exports.VerifyOTPRequest = async (req) => {
   const input = fields(req.query, [
@@ -69,86 +71,28 @@ exports.VerifyOTPRequest = async (req) => {
     otpSource: input.otpSource
   };
 
-  // Select the latest challenge, including consumed/locked records.
-  // Never fall back to an older usable challenge.
-  const challenge = await Otp.findOne(scope).sort({
-    createdAt: -1,
-    _id: -1
+  const verified = await withTransaction(async (session) => {
+    const challenge = await Otp.findOne(scope).sort({ createdAt: -1, _id: -1 }).session(session);
+    if (!challenge || challenge.consumed || challenge.attempts >= 5 || challenge.expiresAt.getTime() <= Date.now()) return false;
+    const lockScope = { telephoneNo: input.telephoneNo, requestType: input.requestType, otpSource: input.otpSource, otpContact: challenge.otpContact };
+    if (!(await claimLatestOtp({ userName: user.userName, purpose: 'WORKFLOW_OTP', scope: lockScope, id: challenge._id, session }))) return false;
+
+    const expectedHash = crypto.createHmac('sha256', secret).update(JSON.stringify([
+      String(challenge._id), String(user._id), challenge.purpose, challenge.tokenVersion,
+      challenge.telephoneNo, challenge.requestType, challenge.otpSource, challenge.otpContact, input.otpCode
+    ])).digest('hex');
+    const usable = { ...scope, _id: challenge._id, consumed: false, attempts: { $lt: 5 }, expiresAt: { $gt: new Date() } };
+    const consumed = await Otp.findOneAndUpdate(
+      { ...usable, codeHash: expectedHash },
+      { $set: { consumed: true, verifiedAt: new Date() } },
+      { new: true, session }
+    );
+    if (consumed) return true;
+    await Otp.updateOne(usable, { $inc: { attempts: 1 } }, { session });
+    return false;
   });
 
-  if (
-    !challenge ||
-    challenge.consumed ||
-    challenge.attempts >= 5 ||
-    challenge.expiresAt.getTime() <= Date.now()
-  ) {
-    fail(
-      400,
-      'OTP_INVALID',
-      'OTP is invalid, expired, used or locked.'
-    );
-  }
-
-  // Must match the hash format used in SendOTPRequest.
-  const expectedHash = crypto
-    .createHmac('sha256', secret)
-    .update(
-      JSON.stringify([
-        String(challenge._id),
-        String(user._id),
-        challenge.purpose,
-        challenge.tokenVersion,
-        challenge.telephoneNo,
-        challenge.requestType,
-        challenge.otpSource,
-        challenge.otpContact,
-        input.otpCode
-      ])
-    )
-    .digest('hex');
-
-  const usableChallenge = {
-    ...scope,
-    _id: challenge._id,
-    consumed: false,
-    attempts: { $lt: 5 },
-    expiresAt: { $gt: new Date() }
-  };
-
-  // Only one request can consume this OTP successfully.
-  const verified = await Otp.findOneAndUpdate(
-    {
-      ...usableChallenge,
-      codeHash: expectedHash
-    },
-    {
-      $set: {
-        consumed: true,
-        verifiedAt: new Date()
-      }
-    },
-    {
-      new: true
-    }
-  );
-
-  if (!verified) {
-    await Otp.updateOne(
-      {
-        ...usableChallenge,
-        expiresAt: { $gt: new Date() }
-      },
-      {
-        $inc: { attempts: 1 }
-      }
-    );
-
-    fail(
-      400,
-      'OTP_INVALID',
-      'OTP is invalid, expired, used or locked.'
-    );
-  }
+  if (!verified) fail(400, 'OTP_INVALID', 'OTP is invalid, expired, used or locked.');
 
   return {
     isSuccess: true,

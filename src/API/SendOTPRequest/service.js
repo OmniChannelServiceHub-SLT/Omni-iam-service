@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const User = require('../../models/User');
 const Otp = require('../../models/Otp');
 const { fields, fail } = require('../../utils/errors');
+const { reserveOtpIssuance } = require('../../utils/otp');
 
 exports.SendOTPRequest = async (req) => {
   const input = fields(req.query, [
@@ -83,23 +84,14 @@ exports.SendOTPRequest = async (req) => {
     otpSource: input.otpSource
   };
 
-  const recent = await Otp.findOne({
-    ...scope,
-    createdAt: {
-      $gt: new Date(Date.now() - 60 * 1000)
-    }
-  });
-
-  if (recent) {
-    fail(
-      429,
-      'OTP_COOLDOWN',
-      'Wait 60 seconds before requesting another OTP.'
-    );
-  }
-
   const otpId = new Otp()._id;
   const code = String(crypto.randomInt(100000, 1000000));
+  await reserveOtpIssuance(user.userName, purpose, {
+    telephoneNo: input.telephoneNo,
+    requestType: input.requestType,
+    otpSource: input.otpSource,
+    otpContact: input.otpContact
+  }, { challengeId: otpId });
 
   // Bind the code to this challenge, user, workflow and recipient.
   const codeHash = crypto

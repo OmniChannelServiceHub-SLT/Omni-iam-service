@@ -6,6 +6,7 @@ const jwt = require('../utils/jwt');
 const { createOtp, verifyOtp } = require('../utils/otp');
 const { fail, fields } = require('../utils/errors');
 const { envelope } = require('../utils/response');
+const { withTransaction } = require('../utils/transaction');
 const ok = (message, dataBundle = null, errorCode = null) => envelope({ isSuccess: true, message, dataBundle, errorCode });
 async function tokens(user) {
   const refreshToken = jwt.generateRefreshToken();
@@ -50,15 +51,37 @@ async function ResendOTPV2(req) {
   const { UserName } = fields(req.body, ['UserName']);
   const user = await User.findOne({ userName: UserName });
   if (!user || user.status === 'TERMINATED') fail(400, 'ACCOUNT_UNAVAILABLE', 'Account unavailable.');
-  const otp = await createOtp(UserName, user.status === 'PENDING_OTP' ? 'REGISTER' : 'FORGOT_PASSWORD');
+  if (user.status !== 'PENDING_OTP') fail(503, 'RECOVERY_OTP_NOT_CONFIGURED', 'Recovery OTP issuance is not configured.');
+  const otp = await createOtp(UserName, 'REGISTER');
   return ok('OTP Sent', String(otp._id));
 }
 async function OTPAuthRequest(req) {
   const { id, verifyOtp: code } = fields(req.body, ['id', 'verifyOtp']);
-  const record = await verifyOtp({ id, code, purpose: 'REGISTER' });
-  const user = await User.findOneAndUpdate({ userName: record.userName, status: 'PENDING_OTP' }, { $set: { status: 'ACTIVE' } }, { new: true });
-  if (!user) fail(400, 'ACCOUNT_UNAVAILABLE', 'Registration account unavailable.');
-  return ok('OTP Verified', await tokens(user));
+  const result = await withTransaction(async (session) => {
+    const challenge = await Otp.findOne({ _id: id, purpose: 'REGISTER' }).session(session);
+    if (!challenge) return { invalid: true };
+    const pending = await User.findOne({ userName: challenge.userName, status: 'PENDING_OTP' }).session(session);
+    if (!pending) return { unavailable: true };
+    const record = await verifyOtp({ id, code, purpose: 'REGISTER', session, returnInvalid: true });
+    if (!record) return { invalid: true };
+    const user = await User.findOneAndUpdate(
+      { _id: pending._id, status: 'PENDING_OTP' },
+      { $set: { status: 'ACTIVE' }, $inc: { authRevision: 1 } },
+      { new: true, session }
+    );
+    if (!user) throw Object.assign(new Error('Registration changed during verification.'), { code: 'REGISTRATION_CHANGED' });
+    const refreshToken = jwt.generateRefreshToken();
+    await RefreshToken.create([{
+      user: user._id,
+      tokenHash: jwt.hashToken(refreshToken),
+      expiresAt: jwt.refreshExpiryDate(),
+      tokenVersion: user.tokenVersion || 0
+    }], { session });
+    return { user, refreshToken };
+  });
+  if (result.invalid) fail(400, 'OTP_INVALID', 'OTP invalid, expired, used or locked.');
+  if (result.unavailable) fail(400, 'ACCOUNT_UNAVAILABLE', 'Registration account unavailable.');
+  return ok('OTP Verified', { accessToken: jwt.signAccessToken(result.user), refreshToken: result.refreshToken, user_id: null, name: null });
 }
 async function ChangePassword(req) {
   const data = fields(req.body, ['UserName', 'Password', 'NewPassword']); owner(req, data.UserName); password(data.NewPassword);
@@ -70,12 +93,40 @@ async function ChangePassword(req) {
 }
 async function ForgotPassword(req) {
   const data = fields(req.body, ['UserName','verifyOtp','newPassword']); password(data.newPassword);
-  const user = await User.findOne({ userName: data.UserName, status: 'ACTIVE' });
-  if (!user) fail(400, 'ACCOUNT_UNAVAILABLE', 'Account unavailable.');
-  await verifyOtp({ userName: data.UserName, code: data.verifyOtp, purpose: 'FORGOT_PASSWORD' });
-  const changed = await User.findOneAndUpdate({ _id: user._id, status: 'ACTIVE' }, { $set: { passwordHash: await bcrypt.hash(data.newPassword, 12) }, $inc: { tokenVersion: 1 } }, { new: true });
-  if (!changed) fail(409, 'ACCOUNT_CHANGED', 'Account changed; retry.');
-  await invalidate(changed); return ok('Password Updated', String(changed._id));
+  const passwordHash = await bcrypt.hash(data.newPassword, 12);
+  let result;
+  try {
+    result = await withTransaction(async (session) => {
+    const user = await User.findOne({ userName: data.UserName, status: 'ACTIVE' }).session(session);
+    if (!user) return { unavailable: true };
+
+    const otp = await verifyOtp({
+      userName: data.UserName,
+      code: data.verifyOtp,
+      purpose: 'FORGOT_PASSWORD',
+      session,
+      returnInvalid: true
+    });
+    if (!otp) return { invalid: true };
+
+    const changed = await User.findOneAndUpdate(
+      { _id: user._id, status: 'ACTIVE' },
+      { $set: { passwordHash }, $inc: { tokenVersion: 1, authRevision: 1 } },
+      { new: true, session }
+    );
+    if (!changed) throw Object.assign(new Error('Account changed during password reset.'), { code: 'ACCOUNT_CHANGED_DURING_RESET' });
+    await RefreshToken.updateMany({ user: changed._id, revoked: false }, { $set: { revoked: true } }, { session });
+    await Otp.updateMany({ userName: changed.userName, consumed: false }, { $set: { consumed: true } }, { session });
+    return { userId: String(changed._id) };
+    });
+  } catch (error) {
+    if (error.code !== 'ACCOUNT_CHANGED_DURING_RESET') throw error;
+    result = { changed: false };
+  }
+  if (result.unavailable) fail(400, 'ACCOUNT_UNAVAILABLE', 'Account unavailable.');
+  if (result.invalid) fail(400, 'OTP_INVALID', 'OTP invalid, expired, used or locked.');
+  if (result.changed === false) fail(409, 'ACCOUNT_CHANGED', 'Account changed; retry.');
+  return ok('Password Updated', result.userId);
 }
 async function TerminateProfile(req) {
   const { userName } = fields(req.body, ['userName','userType']); owner(req, userName);

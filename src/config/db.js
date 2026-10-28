@@ -12,6 +12,9 @@ module.exports = async function connectDB() {
 
   await mongoose.connect(uri);
 
+  // OTP issuance concurrency depends on this unique index being present.
+  await require('../models/OtpIssuanceLock').init();
+
   // eslint-disable-next-line no-console
   console.log(`IAM Service connected to MongoDB (${mongoose.connection.name})`);
 

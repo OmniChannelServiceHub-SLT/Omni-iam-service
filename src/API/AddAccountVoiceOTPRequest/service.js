@@ -5,6 +5,8 @@ const User = require('../../models/User');
 
 const { fields, fail } = require('../../utils/errors');
 const { envelope } = require('../../utils/response');
+const { claimLatestOtp } = require('../../utils/otp');
+const { withTransaction } = require('../../utils/transaction');
 
 const PURPOSE = 'ADD_ACCOUNT_VOICE';
 
@@ -35,41 +37,13 @@ exports.AddAccountVoiceOTPRequest = async (req) => {
 
   const tokenVersion = user.tokenVersion || 0;
 
-  // Select the latest challenge for this user/contact.
-  const otp = await Otp.findOne({
+  const scope = {
     user: user._id,
     userName: user.userName,
     econtact,
     purpose: PURPOSE,
     tokenVersion
-  }).sort({
-    createdAt: -1,
-    _id: -1
-  });
-
-  if (
-    !otp ||
-    otp.consumed ||
-    otp.attempts >= 5 ||
-    otp.expiresAt.getTime() <= Date.now()
-  ) {
-    fail(
-      400,
-      'OTP_INVALID',
-      'OTP is invalid, expired, used or locked.'
-    );
-  }
-
-  if (
-    typeof otp.resultData !== 'string' ||
-    !otp.resultData.trim()
-  ) {
-    fail(
-      500,
-      'OTP_DATA_MISSING',
-      'The OTP request has no associated result data.'
-    );
-  }
+  };
 
   const secret =
     process.env.OTP_HASH_SECRET ||
@@ -84,7 +58,13 @@ exports.AddAccountVoiceOTPRequest = async (req) => {
   }
 
   // Matches the existing utils/otp.js hash format.
-  const submittedHash = crypto
+  const verifiedOtp = await withTransaction(async (session) => {
+    const otp = await Otp.findOne(scope).sort({ createdAt: -1, _id: -1 }).session(session);
+    if (!otp || otp.consumed || otp.attempts >= 5 || otp.expiresAt.getTime() <= Date.now()) return null;
+    if (typeof otp.resultData !== 'string' || !otp.resultData.trim()) return { invalidData: true };
+    if (!(await claimLatestOtp({ userName: user.userName, purpose: PURPOSE, scope: { econtact }, id: otp._id, session }))) return null;
+
+    const submittedHash = crypto
     .createHmac('sha256', secret)
     .update(
       JSON.stringify([
@@ -94,55 +74,26 @@ exports.AddAccountVoiceOTPRequest = async (req) => {
       ])
     )
     .digest('hex');
-
-  const filter = {
-    _id: otp._id,
-    user: user._id,
-    userName: user.userName,
-    econtact,
-    purpose: PURPOSE,
-    tokenVersion,
-    consumed: false,
-    attempts: {
-      $lt: 5
-    },
-    expiresAt: {
-      $gt: new Date()
-    }
-  };
-
-  // Only one request can successfully consume this OTP.
-  const verifiedOtp = await Otp.findOneAndUpdate(
-    {
-      ...filter,
-      codeHash: submittedHash
-    },
-    {
-      $set: {
-        consumed: true,
-        verifiedAt: new Date()
-      }
-    },
-    {
-      new: true
-    }
-  );
+    const usable = { ...scope, _id: otp._id, consumed: false, attempts: { $lt: 5 }, expiresAt: { $gt: new Date() } };
+    const consumed = await Otp.findOneAndUpdate(
+      { ...usable, codeHash: submittedHash },
+      { $set: { consumed: true, verifiedAt: new Date() } },
+      { new: true, session }
+    );
+    if (consumed) return consumed;
+    await Otp.updateOne(usable, { $inc: { attempts: 1 } }, { session });
+    return null;
+  });
 
   if (!verifiedOtp) {
-    await Otp.updateOne(
-      filter,
-      {
-        $inc: {
-          attempts: 1
-        }
-      }
-    );
-
     fail(
       400,
       'OTP_INVALID',
       'OTP is invalid, expired, used or locked.'
     );
+  }
+  if (verifiedOtp.invalidData) {
+    fail(500, 'OTP_DATA_MISSING', 'The OTP request has no associated result data.');
   }
 
   return envelope({

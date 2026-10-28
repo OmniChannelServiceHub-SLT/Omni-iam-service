@@ -3,6 +3,8 @@ const crypto = require('crypto');
 const User = require('../../models/User');
 const Otp = require('../../models/Otp');
 const { fields, fail } = require('../../utils/errors');
+const { claimLatestOtp } = require('../../utils/otp');
+const { withTransaction } = require('../../utils/transaction');
 
 exports.OTPeBillAuthRequest = async (req) => {
   const input = fields(req.query, ['econtact', 'otpCode']);
@@ -53,103 +55,35 @@ exports.OTPeBillAuthRequest = async (req) => {
     otpContact: input.econtact
   };
 
-  const challenge = await Otp.findOne(scope).sort({
-    createdAt: -1,
-    _id: -1
+  const verified = await withTransaction(async (session) => {
+    const matches = await Otp.countDocuments({
+      ...scope,
+      consumed: false,
+      attempts: { $lt: 5 },
+      expiresAt: { $gt: new Date() }
+    }).session(session);
+    if (matches !== 1) return false;
+    const challenge = await Otp.findOne(scope).sort({ createdAt: -1, _id: -1 }).session(session);
+    if (!challenge || challenge.consumed || challenge.attempts >= 5 || challenge.expiresAt.getTime() <= Date.now()) return false;
+
+    const lockScope = { telephoneNo: challenge.telephoneNo, requestType: 'eBill', otpSource: 'MOBILE', otpContact: challenge.otpContact };
+    if (!(await claimLatestOtp({ userName: user.userName, purpose: 'WORKFLOW_OTP', scope: lockScope, id: challenge._id, session }))) return false;
+
+    const expectedHash = crypto.createHmac('sha256', secret).update(JSON.stringify([
+      String(challenge._id), String(user._id), challenge.purpose, challenge.tokenVersion,
+      challenge.telephoneNo, challenge.requestType, challenge.otpSource, challenge.otpContact, input.otpCode
+    ])).digest('hex');
+    const usable = { ...scope, _id: challenge._id, consumed: false, attempts: { $lt: 5 }, expiresAt: { $gt: new Date() } };
+    const consumed = await Otp.findOneAndUpdate(
+      { ...usable, codeHash: expectedHash },
+      { $set: { consumed: true, verifiedAt: new Date() } },
+      { new: true, session }
+    );
+    if (consumed) return true;
+    await Otp.updateOne(usable, { $inc: { attempts: 1 } }, { session });
+    return false;
   });
-
-  if (
-    !challenge ||
-    challenge.consumed ||
-    challenge.attempts >= 5 ||
-    challenge.expiresAt.getTime() <= Date.now()
-  ) {
-    fail(
-      400,
-      'OTP_INVALID',
-      'OTP is invalid, expired, used or locked.'
-    );
-  }
-
-  // Confirm this is still the latest challenge for its original
-  // telephone/workflow scope, even if the contact was changed.
-  const latestForTelephone = await Otp.findOne({
-    user: user._id,
-    userName: user.userName,
-    tokenVersion: user.tokenVersion || 0,
-    purpose: 'WORKFLOW_OTP',
-    telephoneNo: challenge.telephoneNo,
-    requestType: 'eBill',
-    otpSource: 'MOBILE'
-  }).sort({
-    createdAt: -1,
-    _id: -1
-  });
-
-  if (
-    !latestForTelephone ||
-    String(latestForTelephone._id) !== String(challenge._id)
-  ) {
-    fail(400, 'OTP_INVALID', 'Request a new eBill OTP.');
-  }
-
-  // Matches the hash format used by SendOTPRequest.
-  const expectedHash = crypto
-    .createHmac('sha256', secret)
-    .update(
-      JSON.stringify([
-        String(challenge._id),
-        String(user._id),
-        challenge.purpose,
-        challenge.tokenVersion,
-        challenge.telephoneNo,
-        challenge.requestType,
-        challenge.otpSource,
-        challenge.otpContact,
-        input.otpCode
-      ])
-    )
-    .digest('hex');
-
-  const usable = {
-    ...scope,
-    _id: challenge._id,
-    consumed: false,
-    attempts: { $lt: 5 },
-    expiresAt: { $gt: new Date() }
-  };
-
-  const verified = await Otp.findOneAndUpdate(
-    {
-      ...usable,
-      codeHash: expectedHash
-    },
-    {
-      $set: {
-        consumed: true,
-        verifiedAt: new Date()
-      }
-    },
-    { new: true }
-  );
-
-  if (!verified) {
-    await Otp.updateOne(
-      {
-        ...usable,
-        expiresAt: { $gt: new Date() }
-      },
-      {
-        $inc: { attempts: 1 }
-      }
-    );
-
-    fail(
-      400,
-      'OTP_INVALID',
-      'OTP is invalid, expired, used or locked.'
-    );
-  }
+  if (!verified) fail(400, 'OTP_INVALID', 'OTP is invalid, expired, used or locked.');
 
   return {
     isSuccess: true,

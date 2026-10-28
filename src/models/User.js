@@ -26,6 +26,7 @@ const userSchema = new Schema(
     status: { type: String, enum: USER_STATUS, default: 'PENDING_OTP' },
 
     tokenVersion: { type: Number, default: 0 },
+    authRevision: { type: Number, default: 0 },
     failedLoginAttempts: { type: Number, default: 0 },
     lastLoginAt: { type: Date, default: null },
   },
