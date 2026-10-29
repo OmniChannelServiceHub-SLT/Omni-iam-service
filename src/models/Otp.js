@@ -1,24 +1,115 @@
-// src/models/Otp.js
-// Mirrors the legacy contract: on Register / Resend OTP / Forgot Password,
-// dataBundle returns the Mongo _id of this OTP record. The client then sends
-// { verifyOtp, id } back to the verify/forgot-password endpoints.
 const mongoose = require('mongoose');
 
-const { Schema } = mongoose;
+function isVoiceOtp() {
+  return this.purpose === 'ADD_ACCOUNT_VOICE';
+}
 
-const OTP_PURPOSES = ['REGISTER', 'FORGOT_PASSWORD'];
+function isWorkflowOtp() {
+  return this.purpose === 'WORKFLOW_OTP';
+}
 
-const otpSchema = new Schema(
+function isBoundOtp() {
+  return isVoiceOtp.call(this) || isWorkflowOtp.call(this);
+}
+
+const otpSchema = new mongoose.Schema(
   {
-    userName: { type: String, required: true, index: true },
-    code: { type: String, required: true },
-    purpose: { type: String, enum: OTP_PURPOSES, required: true },
-    consumed: { type: Boolean, default: false },
-    attempts: { type: Number, default: 0 },
-    expiresAt: { type: Date, required: true },
+    userName: {
+      type: String,
+      required: true,
+      index: true
+    },
+
+    codeHash: {
+      type: String,
+      required: true
+    },
+
+    purpose: {
+      type: String,
+      enum: [
+        'REGISTER',
+        'FORGOT_PASSWORD',
+        'ADD_ACCOUNT_VOICE',
+        'WORKFLOW_OTP'
+      ],
+      required: true
+    },
+
+    consumed: {
+      type: Boolean,
+      default: false
+    },
+
+    attempts: {
+      type: Number,
+      default: 0
+    },
+
+    expiresAt: {
+      type: Date,
+      required: true
+    },
+
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: isBoundOtp
+    },
+
+    econtact: {
+      type: String,
+      required: isVoiceOtp
+    },
+
+    tokenVersion: {
+      type: Number,
+      required: isBoundOtp
+    },
+
+    resultData: {
+      type: String,
+      required: isVoiceOtp
+    },
+
+    telephoneNo: {
+      type: String,
+      required: isWorkflowOtp
+    },
+
+    requestType: {
+      type: String,
+      required: isWorkflowOtp
+    },
+
+    requestPeriod: {
+      type: String,
+      required: isWorkflowOtp
+    },
+
+    otpSource: {
+      type: String,
+      required: isWorkflowOtp
+    },
+
+    otpContact: {
+      type: String,
+      required: isWorkflowOtp
+    },
+
+    verifiedAt: {
+      type: Date,
+      default: null
+    }
   },
-  { timestamps: true }
+  {
+    timestamps: true
+  }
+);
+
+otpSchema.index(
+  { expiresAt: 1 },
+  { expireAfterSeconds: 0 }
 );
 
 module.exports = mongoose.model('Otp', otpSchema);
-module.exports.OTP_PURPOSES = OTP_PURPOSES;
