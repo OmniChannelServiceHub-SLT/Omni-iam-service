@@ -3,6 +3,7 @@ const RefreshToken = require('../../models/RefreshToken');
 const Otp = require('../../models/Otp');
 
 const { fields, fail } = require('../../utils/errors');
+const { withTransaction } = require('../../utils/transaction');
 
 exports.TerminateProfile = async (req) => {
   const input = fields(req.body, ['userName', 'userType']);
@@ -51,57 +52,23 @@ exports.TerminateProfile = async (req) => {
     );
   }
 
-  const terminatedUser = await User.findOneAndUpdate(
-    {
-      _id: user._id,
-      userName: user.userName,
-      status: 'ACTIVE'
-    },
-    {
-      $set: {
-        status: 'TERMINATED'
+  const terminated = await withTransaction(async (session) => {
+    const terminatedUser = await User.findOneAndUpdate(
+      {
+        _id: user._id,
+        userName: user.userName,
+        status: 'ACTIVE'
       },
-      $inc: {
-        tokenVersion: 1
-      }
-    },
-    {
-      new: true,
-      runValidators: true
-    }
-  );
-
-  if (!terminatedUser) {
-    fail(
-      409,
-      'PROFILE_CHANGED',
-      'Profile changed during this request.'
+      { $set: { status: 'TERMINATED' }, $inc: { tokenVersion: 1, authRevision: 1 } },
+      { new: true, runValidators: true, session }
     );
-  }
+    if (!terminatedUser) return false;
 
-  await RefreshToken.updateMany(
-    {
-      user: user._id,
-      revoked: false
-    },
-    {
-      $set: {
-        revoked: true
-      }
-    }
-  );
-
-  await Otp.updateMany(
-    {
-      userName: user.userName,
-      consumed: false
-    },
-    {
-      $set: {
-        consumed: true
-      }
-    }
-  );
+    await RefreshToken.updateMany({ user: user._id, revoked: false }, { $set: { revoked: true } }, { session });
+    await Otp.updateMany({ userName: user.userName, consumed: false }, { $set: { consumed: true } }, { session });
+    return true;
+  });
+  if (!terminated) fail(409, 'PROFILE_CHANGED', 'Profile changed during this request.');
 
   return {
     isSuccess: true,

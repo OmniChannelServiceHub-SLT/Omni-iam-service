@@ -5,6 +5,7 @@ const RefreshToken = require('../../models/RefreshToken');
 const Otp = require('../../models/Otp');
 
 const { fields, fail } = require('../../utils/errors');
+const { withTransaction } = require('../../utils/transaction');
 
 exports.ChangePassword = async (req) => {
   const input = fields(req.body, [
@@ -97,52 +98,26 @@ exports.ChangePassword = async (req) => {
   );
 
   // Prevent a concurrent request from overwriting a newer password.
-  const updatedUser = await User.findOneAndUpdate(
-    {
-      _id: user._id,
-      status: 'ACTIVE',
-      passwordHash: user.passwordHash
-    },
-    {
-      $set: {
-        passwordHash: newPasswordHash
+  const updated = await withTransaction(async (session) => {
+    const updatedUser = await User.findOneAndUpdate(
+      {
+        _id: user._id,
+        status: 'ACTIVE',
+        passwordHash: user.passwordHash
       },
-      $inc: {
-        tokenVersion: 1
-      }
-    },
-    {
-      new: true
-    }
-  );
-
-  if (!updatedUser) {
-    fail(
-      409,
-      'PASSWORD_CHANGE_CONFLICT',
-      'Account changed during this request. Please log in again.'
+      {
+        $set: { passwordHash: newPasswordHash },
+        $inc: { tokenVersion: 1, authRevision: 1 }
+      },
+      { new: true, session }
     );
-  }
+    if (!updatedUser) return false;
 
-  await RefreshToken.updateMany(
-    {
-      user: user._id,
-      revoked: false
-    },
-    {
-      $set: { revoked: true }
-    }
-  );
-
-  await Otp.updateMany(
-    {
-      userName: user.userName,
-      consumed: false
-    },
-    {
-      $set: { consumed: true }
-    }
-  );
+    await RefreshToken.updateMany({ user: user._id, revoked: false }, { $set: { revoked: true } }, { session });
+    await Otp.updateMany({ userName: user.userName, consumed: false }, { $set: { consumed: true } }, { session });
+    return true;
+  });
+  if (!updated) fail(409, 'PASSWORD_CHANGE_CONFLICT', 'Account changed during this request. Please log in again.');
 
   return {
     isSuccess: true,
